@@ -151,7 +151,10 @@ func main() {
 				log.Fatal(err)
 			}
 
-			go SendMidiMessage(midiOutPort, data)
+			SendMidiMessage(midiOutPort, data)
+		}
+
+		for {
 		}
 	}
 }
@@ -226,8 +229,6 @@ func CreateTempSmfFile() CleanPath {
 }
 
 func SendMidiMessage(midiPort string, smfData []byte) {
-	defer midi.CloseDriver()
-
 	fmt.Printf("Available MIDI OutPorts:\n" + midi.GetOutPorts().String() + "\n")
 
 	out, err := midi.FindOutPort(midiPort)
