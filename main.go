@@ -139,32 +139,22 @@ func main() {
 
 	defer midi.CloseDriver()
 
-	for {
-		channel := make(chan bool)
-		for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
-			go func() {
-				var (
-					mmlModule   = mmlModuleMidiOutPortMap.mmlModule
-					midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
-				)
+	for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
+		func() {
+			var (
+				mmlModule   = mmlModuleMidiOutPortMap.mmlModule
+				midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
+			)
 
-				smfFilePath := CompileMml(mmlModule)
+			smfFilePath := CompileMml(mmlModule)
 
-				data, err := os.ReadFile(string(smfFilePath))
-				if err != nil {
-					log.Fatal(err)
-				}
-
-				SendMidiMessage(midiOutPort, data)
-				channel <- true
-			}()
-		}
-
-		for ch := range channel {
-			if ch {
-				break
+			data, err := os.ReadFile(string(smfFilePath))
+			if err != nil {
+				log.Fatal(err)
 			}
-		}
+
+			SendMidiMessage(midiOutPort, data)
+		}()
 	}
 }
 
