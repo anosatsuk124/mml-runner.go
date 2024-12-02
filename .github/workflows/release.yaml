@@ -45,5 +45,5 @@ jobs:
             -v `pwd`:"/go/src/${{ env.PACKAGE_NAME }}" \
             -v `pwd`/sysroot:/sysroot \
             -w "/go/src/${{ env.PACKAGE_NAME }}" \
-            goreleaser-cross
+            goreleaser-cross \
             release --clean
