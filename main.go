@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 
 	"bytes"
 
@@ -12,9 +13,13 @@ import (
 
 	"gitlab.com/gomidi/midi/v2/smf"
 
-	"path"
-	// _ "gitlab.com/gomidi/midi/v2/drivers/portmididrv" // autoregisters driver
 	_ "gitlab.com/gomidi/midi/v2/drivers/rtmididrv" // autoregisters driver
+	"path"
+)
+
+const (
+	MML_COMPILER              = "sakuramml"
+	DEFAULT_INCLUDE_FILE_NAME = "include"
 )
 
 type CleanPath string
@@ -45,7 +50,6 @@ type MmlModuleMidiOutPortMap struct {
 
 type MmlMidiPlayerConfig struct {
 	mmlModuleMidiOutPortMaps []MmlModuleMidiOutPortMap
-	defaultIncludeFiles      IncludeFiles
 }
 
 type ToPlayerConfig interface {
@@ -55,6 +59,18 @@ type ToPlayerConfig interface {
 type MmlModule struct {
 	includeFiles IncludeFiles
 	mmlFiles     MmlFiles
+}
+
+func NewMmlModule(includeFiles IncludeFiles, mmlFiles MmlFiles) MmlModule {
+	firstMmlFileDir := path.Dir(string(mmlFiles[0]))
+	defaultIncludeFile := NewCleanPath(path.Join(firstMmlFileDir, DEFAULT_INCLUDE_FILE_NAME))
+
+	includeFiles = append(includeFiles, defaultIncludeFile)
+
+	return MmlModule{
+		includeFiles: includeFiles,
+		mmlFiles:     mmlFiles,
+	}
 }
 
 // Represents the command line arguments
@@ -86,10 +102,7 @@ func ParseCliArgs() CliArgs {
 
 	return CliArgs{
 		mmlModuleMidiOutPortMap: MmlModuleMidiOutPortMap{
-			mmlModule: MmlModule{
-				mmlFiles:     mmlFiles,
-				includeFiles: includeFiles,
-			},
+			mmlModule:   NewMmlModule(includeFiles, mmlFiles),
 			midiOutPort: midiOutPort,
 		},
 		help: help,
@@ -101,39 +114,114 @@ func (c CliArgs) PlayerConfig() MmlMidiPlayerConfig {
 		mmlModuleMidiOutPortMaps: []MmlModuleMidiOutPortMap{
 			c.mmlModuleMidiOutPortMap,
 		},
-		defaultIncludeFiles: []CleanPath{NewCleanPath("include")},
 	}
+
 	return config
 }
 
-func main() {
+func InitCli() CliArgs {
 	cliArgs := ParseCliArgs()
 
 	if cliArgs.help {
 		flag.Usage()
-		return
 	}
 
-	var (
-		mmlMidiPlayerConfig MmlMidiPlayerConfig
-	)
-	mmlMidiPlayerConfig = cliArgs.PlayerConfig()
+	return cliArgs
+}
 
-	var (
-		mmlFile     = mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps[0].mmlModule.mmlFiles[0]
-		midiOutPort = mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps[0].midiOutPort
-	)
+func main() {
+	var config ToPlayerConfig = InitCli()
 
-	data, err := os.ReadFile(string(mmlFile))
+	var mmlMidiPlayerConfig MmlMidiPlayerConfig = config.PlayerConfig()
 
+	for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
+		go func() {
+
+			var (
+				mmlModule   = mmlModuleMidiOutPortMap.mmlModule
+				midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
+			)
+
+			smfFilePath := CompileMml(mmlModule)
+
+			data, err := os.ReadFile(string(smfFilePath))
+			if err != nil {
+				log.Fatal(err)
+			}
+			SendMidiMessage(midiOutPort, data)
+
+		}()
+	}
+}
+
+func CompileMml(mmlModule MmlModule) CleanPath {
+	smfFilePath := CreateTempSmfFile()
+	mmlFilePath := SaveTempMmlFile(ConcatMmlModule(mmlModule))
+
+	cmd := exec.Command(MML_COMPILER, string(mmlFilePath), "-o", string(smfFilePath))
+
+	if err := cmd.Run(); err != nil {
+		log.Printf("Error: %v", err)
+	}
+
+	return smfFilePath
+}
+
+func ConcatMmlModule(mmlModule MmlModule) string {
+	var mmlCode string
+
+	includeMmlPaths := []CleanPath{}
+
+	for _, includeFile := range mmlModule.includeFiles {
+		if includeFileData, err := os.ReadFile(string(includeFile)); err != nil {
+			for _, line := range bytes.Split(includeFileData, []byte("\n")) {
+				path := NewCleanPath(string(bytes.TrimSpace(line)))
+				includeMmlPaths = append(includeMmlPaths, path)
+			}
+		}
+	}
+
+	for _, includeMmlPath := range includeMmlPaths {
+		if includeMmlData, err := os.ReadFile(string(includeMmlPath)); err != nil {
+			mmlCode += string(includeMmlData)
+		}
+	}
+
+	for _, mmlFile := range mmlModule.mmlFiles {
+		if mmldata, err := os.ReadFile(string(mmlFile)); err != nil {
+			mmlCode += string(mmldata)
+		}
+	}
+
+	return mmlCode
+}
+
+func SaveTempMmlFile(mmlCode string) CleanPath {
+	tmpfile, err := os.CreateTemp("", "mml-*.mml")
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	sendMidiMessage(midiOutPort, data)
+	if _, err := tmpfile.Write([]byte(mmlCode)); err != nil {
+		log.Fatal(err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		log.Fatal(err)
+	}
+	return NewCleanPath(tmpfile.Name())
 }
 
-func sendMidiMessage(midiPort string, smfData []byte) {
+func CreateTempSmfFile() CleanPath {
+	tmpfile, err := os.CreateTemp("", "mml-*.mid")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		log.Fatal(err)
+	}
+	return NewCleanPath(tmpfile.Name())
+}
+
+func SendMidiMessage(midiPort string, smfData []byte) {
 	defer midi.CloseDriver()
 
 	fmt.Printf("Available MIDI OutPorts:\n" + midi.GetOutPorts().String() + "\n")
@@ -148,6 +236,6 @@ func sendMidiMessage(midiPort string, smfData []byte) {
 
 	// read and play it
 	smf.ReadTracksFrom(rd).Do(func(ev smf.TrackEvent) {
-		log.Printf("track %v @%vms %s\n", ev.TrackNo, ev.AbsMicroSeconds/1000, ev.Message)
+		// log.Printf("track %v @%vms %s\n", ev.TrackNo, ev.AbsMicroSeconds/1000, ev.Message)
 	}).Play(out)
 }
