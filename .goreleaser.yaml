@@ -28,6 +28,7 @@ builds:
       - CXX=oa64-clang++
     flags:
       - -trimpath
+
   - id: mml-runner-linux-amd64
     binary: mml-runner
     main: ./
@@ -41,7 +42,8 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -extldflags "-lc -lrt -lpthread --static"
+      - -extldflags "-lc -lrt -lpthread"
+
   - id: mml-runner-linux-arm64
     binary: mml-runner
     main: ./
@@ -55,7 +57,8 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -extldflags "-lc -lrt -lpthread --static"
+      - -extldflags "-lc -lrt -lpthread"
+
   - id: mml-runner-windows-amd64
     binary: mml-runner
     main: ./
