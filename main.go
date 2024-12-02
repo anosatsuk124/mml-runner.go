@@ -124,6 +124,8 @@ func InitCli() CliArgs {
 
 	if cliArgs.help {
 		flag.Usage()
+
+		os.Exit(1)
 	}
 
 	return cliArgs
