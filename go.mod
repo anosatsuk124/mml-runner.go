@@ -1,4 +1,4 @@
-module github.com/anosatsuk124/mml-runner.go
+module github.com/anosatsuk124/mml-runner
 
 go 1.23.3
 
