@@ -183,7 +183,7 @@ func ConcatMmlModule(mmlModule MmlModule) string {
 	includeMmlPaths := []CleanPath{}
 
 	for _, includeFile := range mmlModule.includeFiles {
-		if includeFileData, err := os.ReadFile(string(includeFile)); err != nil {
+		if includeFileData, err := os.ReadFile(string(includeFile)); err == nil {
 			for _, line := range bytes.Split(includeFileData, []byte("\n")) {
 				path := NewCleanPath(string(bytes.TrimSpace(line)))
 				includeMmlPaths = append(includeMmlPaths, path)
@@ -192,13 +192,13 @@ func ConcatMmlModule(mmlModule MmlModule) string {
 	}
 
 	for _, includeMmlPath := range includeMmlPaths {
-		if includeMmlData, err := os.ReadFile(string(includeMmlPath)); err != nil {
+		if includeMmlData, err := os.ReadFile(string(includeMmlPath)); err == nil {
 			mmlCode += string(includeMmlData)
 		}
 	}
 
 	for _, mmlFile := range mmlModule.mmlFiles {
-		if mmldata, err := os.ReadFile(string(mmlFile)); err != nil {
+		if mmldata, err := os.ReadFile(string(mmlFile)); err == nil {
 			mmlCode += string(mmldata)
 		}
 	}
