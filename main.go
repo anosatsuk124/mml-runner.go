@@ -140,21 +140,19 @@ func main() {
 	defer midi.CloseDriver()
 
 	for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
-		func() {
-			var (
-				mmlModule   = mmlModuleMidiOutPortMap.mmlModule
-				midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
-			)
+		var (
+			mmlModule   = mmlModuleMidiOutPortMap.mmlModule
+			midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
+		)
 
-			smfFilePath := CompileMml(mmlModule)
+		smfFilePath := CompileMml(mmlModule)
 
-			data, err := os.ReadFile(string(smfFilePath))
-			if err != nil {
-				log.Fatal(err)
-			}
+		data, err := os.ReadFile(string(smfFilePath))
+		if err != nil {
+			log.Fatal(err)
+		}
 
-			SendMidiMessage(midiOutPort, data)
-		}()
+		SendMidiMessage(midiOutPort, data)
 	}
 }
 
