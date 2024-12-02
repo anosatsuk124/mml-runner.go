@@ -161,7 +161,10 @@ func main() {
 
 func CompileMml(mmlModule MmlModule) CleanPath {
 	smfFilePath := CreateTempSmfFile()
+	log.Println("smfFilePath: ", smfFilePath)
+
 	mmlFilePath := SaveTempMmlFile(ConcatMmlModule(mmlModule))
+	log.Println("mmlFilePath: ", mmlFilePath)
 
 	cmd := exec.Command(MML_COMPILER, string(mmlFilePath), string(smfFilePath))
 
