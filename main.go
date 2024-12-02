@@ -6,15 +6,18 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"time"
 
 	"bytes"
 
 	"gitlab.com/gomidi/midi/v2"
 
+	"github.com/fsnotify/fsnotify"
 	"gitlab.com/gomidi/midi/v2/smf"
 
-	_ "gitlab.com/gomidi/midi/v2/drivers/rtmididrv" // autoregisters driver
 	"path"
+
+	_ "gitlab.com/gomidi/midi/v2/drivers/rtmididrv" // autoregisters driver
 )
 
 const (
@@ -137,26 +140,63 @@ func main() {
 
 	var mmlMidiPlayerConfig MmlMidiPlayerConfig = config.PlayerConfig()
 
-	for {
-		for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
-			var (
-				mmlModule   = mmlModuleMidiOutPortMap.mmlModule
-				midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
-			)
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer watcher.Close()
 
-			smfFilePath := CompileMml(mmlModule)
+	go func() {
+		for {
+			select {
+			default:
+				time.Sleep(100 * time.Millisecond)
+			case event, ok := <-watcher.Events:
+				if !ok {
+					log.Println("watcher.Events is not ok")
+					return
+				}
 
-			data, err := os.ReadFile(string(smfFilePath))
+				log.Print("File Changed: ", event.Name)
+
+				for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
+					var (
+						mmlModule   = mmlModuleMidiOutPortMap.mmlModule
+						midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
+					)
+
+					smfFilePath := CompileMml(mmlModule)
+
+					data, err := os.ReadFile(string(smfFilePath))
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					SendMidiMessage(midiOutPort, data)
+				}
+
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					log.Println("watcher.Errors is not ok")
+					return
+				}
+				log.Println("error:", err)
+			}
+		}
+	}()
+
+	for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
+		var (
+			mmlFiles = mmlModuleMidiOutPortMap.mmlModule.mmlFiles
+		)
+		for _, mmlFile := range mmlFiles {
+			err = watcher.Add(string(mmlFile))
 			if err != nil {
 				log.Fatal(err)
 			}
-
-			SendMidiMessage(midiOutPort, data)
-		}
-
-		for {
 		}
 	}
+	<-make(chan struct{})
 }
 
 func CompileMml(mmlModule MmlModule) CleanPath {
