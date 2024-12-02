@@ -137,33 +137,21 @@ func main() {
 
 	var mmlMidiPlayerConfig MmlMidiPlayerConfig = config.PlayerConfig()
 
-	defer midi.CloseDriver()
-
 	for {
-		channel := make(chan bool)
 		for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
-			go func() {
-				var (
-					mmlModule   = mmlModuleMidiOutPortMap.mmlModule
-					midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
-				)
+			var (
+				mmlModule   = mmlModuleMidiOutPortMap.mmlModule
+				midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
+			)
 
-				smfFilePath := CompileMml(mmlModule)
+			smfFilePath := CompileMml(mmlModule)
 
-				data, err := os.ReadFile(string(smfFilePath))
-				if err != nil {
-					log.Fatal(err)
-				}
-
-				SendMidiMessage(midiOutPort, data)
-				channel <- true
-			}()
-		}
-
-		for ch := range channel {
-			if ch {
-				break
+			data, err := os.ReadFile(string(smfFilePath))
+			if err != nil {
+				log.Fatal(err)
 			}
+
+			SendMidiMessage(midiOutPort, data)
 		}
 	}
 }
@@ -238,6 +226,8 @@ func CreateTempSmfFile() CleanPath {
 }
 
 func SendMidiMessage(midiPort string, smfData []byte) {
+	defer midi.CloseDriver()
+
 	fmt.Printf("Available MIDI OutPorts:\n" + midi.GetOutPorts().String() + "\n")
 
 	out, err := midi.FindOutPort(midiPort)
