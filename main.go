@@ -190,7 +190,7 @@ func main() {
 			mmlFiles = mmlModuleMidiOutPortMap.mmlModule.mmlFiles
 		)
 		for _, mmlFile := range mmlFiles {
-			err = watcher.Add(string(mmlFile))
+			err = watcher.Add(path.Dir(string(mmlFile)))
 			if err != nil {
 				log.Fatal(err)
 			}
