@@ -147,8 +147,8 @@ func main() {
 	defer watcher.Close()
 
 	go func() {
+		ctx, cancel := context.WithCancel(context.Background())
 		for {
-			ctx, cancel := context.WithCancel(context.Background())
 			select {
 			default:
 				for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
