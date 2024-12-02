@@ -165,9 +165,8 @@ func main() {
 						log.Fatal(err)
 					}
 
-					go SendMidiMessage(ctx, midiOutPort, data)
+					SendMidiMessage(ctx, midiOutPort, data)
 				}
-				time.Sleep(100 * time.Millisecond)
 
 			case event, ok := <-watcher.Events:
 				cancel()
