@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"sync"
 
 	"bytes"
 
@@ -138,14 +139,9 @@ func main() {
 
 	var mmlMidiPlayerConfig MmlMidiPlayerConfig = config.PlayerConfig()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	channel := make(chan bool)
-	for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
-		go func(ctx context.Context) {
-			select {
-			case <-ctx.Done():
-				return
-			default:
+	for {
+		for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
+			func() {
 				var (
 					mmlModule   = mmlModuleMidiOutPortMap.mmlModule
 					midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
@@ -159,16 +155,9 @@ func main() {
 				}
 
 				SendMidiMessage(midiOutPort, data)
-				channel <- true
-			}
-		}(ctx)
+			}()
+		}
 	}
-
-	for range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
-		fmt.Println(<-channel)
-	}
-
-	cancel()
 }
 
 func CompileMml(mmlModule MmlModule) CleanPath {
