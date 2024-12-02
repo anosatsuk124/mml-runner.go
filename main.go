@@ -62,10 +62,11 @@ type MmlModule struct {
 }
 
 func NewMmlModule(includeFiles IncludeFiles, mmlFiles MmlFiles) MmlModule {
-	firstMmlFileDir := path.Dir(string(mmlFiles[0]))
-	defaultIncludeFile := NewCleanPath(path.Join(firstMmlFileDir, DEFAULT_INCLUDE_FILE_NAME))
-
-	includeFiles = append(includeFiles, defaultIncludeFile)
+	if len(mmlFiles) > 0 {
+		firstMmlFileDir := path.Dir(string(mmlFiles[0]))
+		defaultIncludeFile := NewCleanPath(path.Join(firstMmlFileDir, DEFAULT_INCLUDE_FILE_NAME))
+		includeFiles = append(includeFiles, defaultIncludeFile)
+	}
 
 	return MmlModule{
 		includeFiles: includeFiles,
