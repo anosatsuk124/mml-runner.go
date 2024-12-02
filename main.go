@@ -149,24 +149,24 @@ func main() {
 	go func() {
 		for {
 			ctx, cancel := context.WithCancel(context.Background())
-			select {
-			default:
-				for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
-					var (
-						mmlModule   = mmlModuleMidiOutPortMap.mmlModule
-						midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
-					)
 
-					smfFilePath := CompileMml(mmlModule)
+			for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
+				var (
+					mmlModule   = mmlModuleMidiOutPortMap.mmlModule
+					midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
+				)
 
-					data, err := os.ReadFile(string(smfFilePath))
-					if err != nil {
-						log.Fatal(err)
-					}
+				smfFilePath := CompileMml(mmlModule)
 
-					SendMidiMessage(ctx, midiOutPort, data)
+				data, err := os.ReadFile(string(smfFilePath))
+				if err != nil {
+					log.Fatal(err)
 				}
 
+				go SendMidiMessage(ctx, midiOutPort, data)
+			}
+
+			select {
 			case event, ok := <-watcher.Events:
 				cancel()
 				if !ok {
