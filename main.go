@@ -140,6 +140,7 @@ func main() {
 
 	var mmlMidiPlayerConfig MmlMidiPlayerConfig = config.PlayerConfig()
 
+	defer midi.CloseDriver()
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
@@ -272,7 +273,6 @@ func CreateTempSmfFile() CleanPath {
 }
 
 func SendMidiMessage(ctx context.Context, midiPort string, smfData []byte) {
-	defer midi.CloseDriver()
 	fmt.Printf("Available MIDI OutPorts:\n" + midi.GetOutPorts().String() + "\n")
 
 	out, err := midi.FindOutPort(midiPort)
