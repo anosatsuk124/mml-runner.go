@@ -4,8 +4,7 @@ RUN dpkg --add-architecture aarch64
 
 RUN apt-get update && apt-get install -y \
   build-essential \
-  build-essential:arm64 \
-  libssl-dev:arm64 \
+  libssl-dev \
   pkg-config \
   libasound2-dev \
   libasound2-dev:arm64 \
