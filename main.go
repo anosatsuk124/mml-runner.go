@@ -139,20 +139,32 @@ func main() {
 
 	defer midi.CloseDriver()
 
-	for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
-		var (
-			mmlModule   = mmlModuleMidiOutPortMap.mmlModule
-			midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
-		)
+	for {
+		channel := make(chan bool)
+		for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
+			go func() {
+				var (
+					mmlModule   = mmlModuleMidiOutPortMap.mmlModule
+					midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
+				)
 
-		smfFilePath := CompileMml(mmlModule)
+				smfFilePath := CompileMml(mmlModule)
 
-		data, err := os.ReadFile(string(smfFilePath))
-		if err != nil {
-			log.Fatal(err)
+				data, err := os.ReadFile(string(smfFilePath))
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				SendMidiMessage(midiOutPort, data)
+				channel <- true
+			}()
 		}
 
-		SendMidiMessage(midiOutPort, data)
+		for ch := range channel {
+			if ch {
+				break
+			}
+		}
 	}
 }
 
@@ -160,7 +172,7 @@ func CompileMml(mmlModule MmlModule) CleanPath {
 	smfFilePath := CreateTempSmfFile()
 	mmlFilePath := SaveTempMmlFile(ConcatMmlModule(mmlModule))
 
-	cmd := exec.Command(MML_COMPILER, string(mmlFilePath), "-o", string(smfFilePath))
+	cmd := exec.Command(MML_COMPILER, string(mmlFilePath), string(smfFilePath))
 
 	if output, err := cmd.Output(); err != nil {
 		log.Printf("Error: %v", err)
