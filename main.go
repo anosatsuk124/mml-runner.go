@@ -140,6 +140,7 @@ func main() {
 	defer midi.CloseDriver()
 
 	for {
+		channel := make(chan bool)
 		for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
 			go func() {
 				var (
@@ -155,7 +156,14 @@ func main() {
 				}
 
 				SendMidiMessage(midiOutPort, data)
+				channel <- true
 			}()
+		}
+
+		for ch := range channel {
+			if ch {
+				break
+			}
 		}
 	}
 }
