@@ -242,6 +242,6 @@ func SendMidiMessage(midiPort string, smfData []byte) {
 
 	// read and play it
 	smf.ReadTracksFrom(rd).Do(func(ev smf.TrackEvent) {
-		// log.Printf("track %v @%vms %s\n", ev.TrackNo, ev.AbsMicroSeconds/1000, ev.Message)
+		log.Printf("track %v @%vms %s\n", ev.TrackNo, ev.AbsMicroSeconds/1000, ev.Message)
 	}).Play(out)
 }
