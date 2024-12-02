@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -148,17 +149,9 @@ func main() {
 
 	go func() {
 		for {
+			ctx, cancel := context.WithCancel(context.Background())
 			select {
 			default:
-				time.Sleep(100 * time.Millisecond)
-			case event, ok := <-watcher.Events:
-				if !ok {
-					log.Println("watcher.Events is not ok")
-					return
-				}
-
-				log.Print("File Changed: ", event.Name)
-
 				for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
 					var (
 						mmlModule   = mmlModuleMidiOutPortMap.mmlModule
@@ -172,10 +165,21 @@ func main() {
 						log.Fatal(err)
 					}
 
-					SendMidiMessage(midiOutPort, data)
+					go SendMidiMessage(ctx, midiOutPort, data)
+				}
+				time.Sleep(100 * time.Millisecond)
+
+			case event, ok := <-watcher.Events:
+				cancel()
+				if !ok {
+					log.Println("watcher.Events is not ok")
+					return
 				}
 
+				log.Print("File Changed: ", event.Name)
+
 			case err, ok := <-watcher.Errors:
+				cancel()
 				if !ok {
 					log.Println("watcher.Errors is not ok")
 					return
@@ -269,7 +273,7 @@ func CreateTempSmfFile() CleanPath {
 	return NewCleanPath(tmpfile.Name())
 }
 
-func SendMidiMessage(midiPort string, smfData []byte) {
+func SendMidiMessage(ctx context.Context, midiPort string, smfData []byte) {
 	defer midi.CloseDriver()
 	fmt.Printf("Available MIDI OutPorts:\n" + midi.GetOutPorts().String() + "\n")
 
@@ -281,8 +285,17 @@ func SendMidiMessage(midiPort string, smfData []byte) {
 
 	rd := bytes.NewReader(smfData)
 
-	// read and play it
-	smf.ReadTracksFrom(rd).Do(func(ev smf.TrackEvent) {
-		log.Printf("track %v @%vms %s\n", ev.TrackNo, ev.AbsMicroSeconds/1000, ev.Message)
-	}).Play(out)
+	go func() {
+		// read and play it
+		smf.ReadTracksFrom(rd).Do(func(ev smf.TrackEvent) {
+			log.Printf("track %v @%vms %s\n", ev.TrackNo, ev.AbsMicroSeconds/1000, ev.Message)
+		}).Play(out)
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		}
+	}
 }
