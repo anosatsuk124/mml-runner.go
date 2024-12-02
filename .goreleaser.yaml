@@ -1,0 +1,111 @@
+# via https://www.jvt.me/posts/2023/02/24/goreleaser-cgo-cross-compile/
+# # via https://gitlab.com/tanna.dev/dependency-management-data/blob/v0.3.1/.goreleaser.yaml
+env:
+  - CGO_ENABLED=1
+builds:
+  - id: mml-runner-darwin-amd64
+    binary: mml-runner
+    main: main
+    goarch:
+      - amd64
+    goos:
+      - darwin
+    env:
+      - CC=o64-clang
+      - CXX=o64-clang++
+    flags:
+      - -trimpath
+
+  - id: mml-runner-darwin-arm64
+    binary: mml-runner
+    main: main
+    goarch:
+      - arm64
+    goos:
+      - darwin
+    env:
+      - CC=oa64-clang
+      - CXX=oa64-clang++
+    flags:
+      - -trimpath
+  - id: mml-runner-linux-amd64
+    binary: mml-runner
+    main: main
+    env:
+      - CC=x86_64-linux-gnu-gcc
+      - CXX=x86_64-linux-gnu-g++
+    goarch:
+      - amd64
+    goos:
+      - linux
+    flags:
+      - -trimpath
+    ldflags:
+      - -extldflags "-lc -lrt -lpthread --static"
+  - id: mml-runner-linux-arm64
+    binary: mml-runner
+    main: main
+    goarch:
+      - arm64
+    goos:
+      - linux
+    env:
+      - CC=aarch64-linux-gnu-gcc
+      - CXX=aarch64-linux-gnu-g++
+    flags:
+      - -trimpath
+    ldflags:
+      - -extldflags "-lc -lrt -lpthread --static"
+  - id: mml-runner-windows-amd64
+    binary: mml-runner
+    main: main
+    goarch:
+      - amd64
+    goos:
+      - windows
+    env:
+      - CC=x86_64-w64-mingw32-gcc
+      - CXX=x86_64-w64-mingw32-g++
+    flags:
+      - -trimpath
+      - -buildmode=exe
+
+universal_binaries:
+  - id: mml-runner-darwin-universal
+    ids:
+      - mml-runner-darwin-amd64
+      - mml-runner-darwin-arm64
+    replace: true
+    name_template: "mml-runner"
+archives:
+  - id: w/version
+    builds:
+      - mml-runner-darwin-universal
+      - mml-runner-linux-amd64
+      - mml-runner-linux-arm64
+      - mml-runner-windows-amd64
+    name_template: "mml-runner_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: false
+    format: zip
+    files:
+      - none*
+  - id: wo/version
+    builds:
+      - mml-runner-darwin-universal
+      - mml-runner-linux-amd64
+      - mml-runner-linux-arm64
+      - mml-runner-windows-amd64
+    name_template: "mml-runner_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: false
+    format: zip
+    files:
+      - none*
+
+checksum:
+  name_template: "checksums.txt"
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  sort: asc
+gitlab_urls:
+  use_package_registry: true
