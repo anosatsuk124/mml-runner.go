@@ -147,8 +147,8 @@ func main() {
 	defer watcher.Close()
 
 	go func() {
-		ctx, cancel := context.WithCancel(context.Background())
 		for {
+			ctx, cancel := context.WithCancel(context.Background())
 			select {
 			default:
 				for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
@@ -164,7 +164,7 @@ func main() {
 						log.Fatal(err)
 					}
 
-					SendMidiMessage(ctx, cancel, midiOutPort, data)
+					SendMidiMessage(ctx, midiOutPort, data)
 				}
 
 			case event, ok := <-watcher.Events:
@@ -271,7 +271,7 @@ func CreateTempSmfFile() CleanPath {
 	return NewCleanPath(tmpfile.Name())
 }
 
-func SendMidiMessage(ctx context.Context, cancel context.CancelFunc, midiPort string, smfData []byte) {
+func SendMidiMessage(ctx context.Context, midiPort string, smfData []byte) {
 	defer midi.CloseDriver()
 	fmt.Printf("Available MIDI OutPorts:\n" + midi.GetOutPorts().String() + "\n")
 
@@ -288,12 +288,12 @@ func SendMidiMessage(ctx context.Context, cancel context.CancelFunc, midiPort st
 		smf.ReadTracksFrom(rd).Do(func(ev smf.TrackEvent) {
 			log.Printf("track %v @%vms %s\n", ev.TrackNo, ev.AbsMicroSeconds/1000, ev.Message)
 		}).Play(out)
-		cancel()
 	}()
 
 	for {
 		select {
 		case <-ctx.Done():
+			out.Close()
 			return
 		}
 	}
