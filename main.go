@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -137,24 +138,37 @@ func main() {
 
 	var mmlMidiPlayerConfig MmlMidiPlayerConfig = config.PlayerConfig()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	channel := make(chan bool)
 	for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
-		go func() {
+		go func(ctx context.Context) {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				var (
+					mmlModule   = mmlModuleMidiOutPortMap.mmlModule
+					midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
+				)
 
-			var (
-				mmlModule   = mmlModuleMidiOutPortMap.mmlModule
-				midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
-			)
+				smfFilePath := CompileMml(mmlModule)
 
-			smfFilePath := CompileMml(mmlModule)
+				data, err := os.ReadFile(string(smfFilePath))
+				if err != nil {
+					log.Fatal(err)
+				}
 
-			data, err := os.ReadFile(string(smfFilePath))
-			if err != nil {
-				log.Fatal(err)
+				SendMidiMessage(midiOutPort, data)
+				channel <- true
 			}
-			SendMidiMessage(midiOutPort, data)
-
-		}()
+		}(ctx)
 	}
+
+	for range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
+		fmt.Println(<-channel)
+	}
+
+	cancel()
 }
 
 func CompileMml(mmlModule MmlModule) CleanPath {
