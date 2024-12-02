@@ -185,15 +185,14 @@ func main() {
 		}
 	}()
 
-	for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
-		var (
-			mmlFiles        = mmlModuleMidiOutPortMap.mmlModule.mmlFiles
-			firstMmlFileDir = path.Dir(string(mmlFiles[0]))
-		)
-		err = watcher.Add(firstMmlFileDir)
-		if err != nil {
-			log.Fatal(err)
-		}
+	var (
+		mmlFiles        = mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps[0].mmlModule.mmlFiles
+		firstMmlFileDir = path.Dir(string(mmlFiles[0]))
+	)
+
+	err = watcher.Add(firstMmlFileDir)
+	if err != nil {
+		log.Fatal(err)
 	}
 	<-make(chan struct{})
 }
