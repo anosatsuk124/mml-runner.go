@@ -164,8 +164,10 @@ func CompileMml(mmlModule MmlModule) CleanPath {
 
 	cmd := exec.Command(MML_COMPILER, string(mmlFilePath), "-o", string(smfFilePath))
 
-	if err := cmd.Wait(); err != nil {
+	if output, err := cmd.Output(); err != nil {
 		log.Printf("Error: %v", err)
+	} else {
+		log.Println(string(output))
 	}
 
 	return smfFilePath
