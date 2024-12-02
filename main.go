@@ -13,8 +13,8 @@ import (
 	"gitlab.com/gomidi/midi/v2/smf"
 
 	"path"
-
-	_ "gitlab.com/gomidi/midi/v2/drivers/portmididrv" // autoregisters driver
+	// _ "gitlab.com/gomidi/midi/v2/drivers/portmididrv" // autoregisters driver
+	_ "gitlab.com/gomidi/midi/v2/drivers/rtmididrv" // autoregisters driver
 )
 
 type CleanPath string
