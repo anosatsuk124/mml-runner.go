@@ -151,7 +151,7 @@ func main() {
 				log.Fatal(err)
 			}
 
-			SendMidiMessage(midiOutPort, data)
+			go SendMidiMessage(midiOutPort, data)
 		}
 	}
 }
