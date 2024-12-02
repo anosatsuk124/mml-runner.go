@@ -5,7 +5,7 @@ env:
 builds:
   - id: mml-runner-darwin-amd64
     binary: mml-runner
-    main: main
+    main: ./
     goarch:
       - amd64
     goos:
@@ -18,7 +18,7 @@ builds:
 
   - id: mml-runner-darwin-arm64
     binary: mml-runner
-    main: main
+    main: ./
     goarch:
       - arm64
     goos:
@@ -30,7 +30,7 @@ builds:
       - -trimpath
   - id: mml-runner-linux-amd64
     binary: mml-runner
-    main: main
+    main: ./
     env:
       - CC=x86_64-linux-gnu-gcc
       - CXX=x86_64-linux-gnu-g++
@@ -44,7 +44,7 @@ builds:
       - -extldflags "-lc -lrt -lpthread --static"
   - id: mml-runner-linux-arm64
     binary: mml-runner
-    main: main
+    main: ./
     goarch:
       - arm64
     goos:
@@ -58,7 +58,7 @@ builds:
       - -extldflags "-lc -lrt -lpthread --static"
   - id: mml-runner-windows-amd64
     binary: mml-runner
-    main: main
+    main: ./
     goarch:
       - amd64
     goos:
