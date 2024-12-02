@@ -35,8 +35,8 @@ jobs:
       - name: Run GoReleaser
         env:
           PACKAGE_NAME: github.com/anosatsuk124/mml-runner
-          GOLANG_CROSS_VERSION: v1.23.3
         run: |
+          docker build -t goreleaser-cross -f Dockerfile .
           docker run \
             --rm \
             -e CGO_ENABLED=1 \
@@ -45,5 +45,5 @@ jobs:
             -v `pwd`:"/go/src/${{ env.PACKAGE_NAME }}" \
             -v `pwd`/sysroot:/sysroot \
             -w "/go/src/${{ env.PACKAGE_NAME }}" \
-            "ghcr.io/goreleaser/goreleaser-cross:${{ env.GOLANG_CROSS_VERSION }}" \
+            goreleaser-cross
             release --clean
