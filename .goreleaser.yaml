@@ -44,20 +44,20 @@ builds:
     ldflags:
       - -extldflags "-lc -lrt -lpthread"
 
-  #  - id: mml-runner-linux-arm64
-  #    binary: mml-runner
-  #    main: ./
-  #    goarch:
-  #      - arm64
-  #    goos:
-  #      - linux
-  #    env:
-  #      - CC=aarch64-linux-gnu-gcc
-  #      - CXX=aarch64-linux-gnu-g++
-  #    flags:
-  #      - -trimpath
-  #    ldflags:
-  #      - -extldflags "-lc -lrt -lpthread"
+  - id: mml-runner-linux-arm64
+    binary: mml-runner
+    main: ./
+    goarch:
+      - arm64
+    goos:
+      - linux
+    env:
+      - CC=aarch64-linux-gnu-gcc
+      - CXX=aarch64-linux-gnu-g++
+    flags:
+      - -trimpath
+    ldflags:
+      - -extldflags "-lc -lrt -lpthread"
 
   - id: mml-runner-windows-amd64
     binary: mml-runner
@@ -85,7 +85,7 @@ archives:
     builds:
       - mml-runner-darwin-universal
       - mml-runner-linux-amd64
-      # - mml-runner-linux-arm64
+      - mml-runner-linux-arm64
       - mml-runner-windows-amd64
     name_template: "mml-runner_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     wrap_in_directory: false
@@ -96,7 +96,7 @@ archives:
     builds:
       - mml-runner-darwin-universal
       - mml-runner-linux-amd64
-      # - mml-runner-linux-arm64
+      - mml-runner-linux-arm64
       - mml-runner-windows-amd64
     name_template: "mml-runner_{{ .Os }}_{{ .Arch }}"
     wrap_in_directory: false
