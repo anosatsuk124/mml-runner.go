@@ -164,7 +164,7 @@ func main() {
 						log.Fatal(err)
 					}
 
-					SendMidiMessage(ctx, midiOutPort, data)
+					SendMidiMessage(ctx, cancel, midiOutPort, data)
 				}
 
 			case event, ok := <-watcher.Events:
@@ -271,7 +271,7 @@ func CreateTempSmfFile() CleanPath {
 	return NewCleanPath(tmpfile.Name())
 }
 
-func SendMidiMessage(ctx context.Context, midiPort string, smfData []byte) {
+func SendMidiMessage(ctx context.Context, cancel context.CancelFunc, midiPort string, smfData []byte) {
 	defer midi.CloseDriver()
 	fmt.Printf("Available MIDI OutPorts:\n" + midi.GetOutPorts().String() + "\n")
 
@@ -288,6 +288,7 @@ func SendMidiMessage(ctx context.Context, midiPort string, smfData []byte) {
 		smf.ReadTracksFrom(rd).Do(func(ev smf.TrackEvent) {
 			log.Printf("track %v @%vms %s\n", ev.TrackNo, ev.AbsMicroSeconds/1000, ev.Message)
 		}).Play(out)
+		cancel()
 	}()
 
 	for {
