@@ -33,9 +33,9 @@ jobs:
       # More assembly might be required: Docker logins, GPG, etc.
       # It all depends on your needs.
       - name: Run GoReleaser
-        environment:
-          - PACKAGE_NAME: github.com/anosatsuk124/mml-runner
-          - GOLANG_CROSS_VERSION: v1.19.5
+        env:
+          PACKAGE_NAME: github.com/anosatsuk124/mml-runner
+          GOLANG_CROSS_VERSION: v1.19.5
         run: |
           docker run \
             --rm \
