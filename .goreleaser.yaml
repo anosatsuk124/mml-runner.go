@@ -15,6 +15,8 @@ builds:
       - CXX=o64-clang++
     flags:
       - -trimpath
+      - -static-libstdc++
+      - -static-libgcc
 
   - id: mml-runner-darwin-arm64
     binary: mml-runner
@@ -28,6 +30,8 @@ builds:
       - CXX=oa64-clang++
     flags:
       - -trimpath
+      - -static-libstdc++
+      - -static-libgcc
 
   - id: mml-runner-linux-amd64
     binary: mml-runner
@@ -72,6 +76,8 @@ builds:
     flags:
       - -trimpath
       - -buildmode=exe
+      - -static-libstdc++
+      - -static-libgcc
 
 universal_binaries:
   - id: mml-runner-darwin-universal
