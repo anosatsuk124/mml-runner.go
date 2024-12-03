@@ -1,18 +1,20 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
+	"os/signal"
+	"time"
 
 	"bytes"
 
 	"gitlab.com/gomidi/midi/v2"
 
 	"github.com/fsnotify/fsnotify"
+	"gitlab.com/gomidi/midi/v2/drivers"
 	"gitlab.com/gomidi/midi/v2/smf"
 
 	"path"
@@ -99,7 +101,7 @@ func ParseCliArgs() CliArgs {
 
 	{
 		flag.Parse()
-		if !(len(mmlFiles) > 0) {
+		if !(len(mmlFiles) > 0) || midiOutPort == "" {
 			help = true
 		}
 	}
@@ -135,69 +137,91 @@ func InitCli() CliArgs {
 	return cliArgs
 }
 
+func play(quitChan chan struct{}, mmlMidiPlayerConfig MmlMidiPlayerConfig) {
+	for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
+		var (
+			mmlModule   = mmlModuleMidiOutPortMap.mmlModule
+			midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
+		)
+
+		smfFilePath := CompileMml(mmlModule)
+
+		data, err := os.ReadFile(string(smfFilePath))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		fmt.Printf("Available MIDI OutPorts:\n" + midi.GetOutPorts().String() + "\n")
+		out, err := midi.FindOutPort(midiOutPort)
+		if err != nil {
+			log.Fatal("Midi Out Port not found: ", midiOutPort)
+			return
+		}
+
+		SendMidiMessage(quitChan, out, data)
+	}
+}
+
 func main() {
 	var config ToPlayerConfig = InitCli()
 
 	var mmlMidiPlayerConfig MmlMidiPlayerConfig = config.PlayerConfig()
 
 	defer midi.CloseDriver()
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer watcher.Close()
 
-	go func() {
-		for {
-			ctx, cancel := context.WithCancel(context.Background())
+	quitChan := make(chan struct{})
+	signalChan := make(chan os.Signal, 2)
 
-			for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps {
-				var (
-					mmlModule   = mmlModuleMidiOutPortMap.mmlModule
-					midiOutPort = mmlModuleMidiOutPortMap.midiOutPort
-				)
-
-				smfFilePath := CompileMml(mmlModule)
-
-				data, err := os.ReadFile(string(smfFilePath))
-				if err != nil {
-					log.Fatal(err)
-				}
-
-				go SendMidiMessage(ctx, midiOutPort, data)
-			}
-
-			select {
-			case event, ok := <-watcher.Events:
-				cancel()
-				if !ok {
-					log.Println("watcher.Events is not ok")
-					return
-				}
-
-				log.Print("File Changed: ", event.Name)
-
-			case err, ok := <-watcher.Errors:
-				cancel()
-				if !ok {
-					log.Println("watcher.Errors is not ok")
-					return
-				}
-				log.Println("error:", err)
-			}
-		}
-	}()
+	// Handle SIGINT
+	signal.Notify(signalChan, os.Interrupt)
 
 	var (
 		mmlFiles        = mmlMidiPlayerConfig.mmlModuleMidiOutPortMaps[0].mmlModule.mmlFiles
 		firstMmlFileDir = path.Dir(string(mmlFiles[0]))
 	)
 
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer watcher.Close()
+	log.Println("Watching: ", firstMmlFileDir)
+
 	err = watcher.Add(firstMmlFileDir)
 	if err != nil {
 		log.Fatal(err)
 	}
-	<-make(chan struct{})
+
+	go play(quitChan, mmlMidiPlayerConfig)
+
+	for {
+		select {
+		default:
+		case event, ok := <-watcher.Events:
+			log.Println("File Changed: ", event.Name)
+			if !ok {
+				log.Println("watcher.Events is not ok")
+				return
+			}
+			quitChan <- struct{}{}
+			time.Sleep(100 * time.Millisecond)
+			go play(quitChan, mmlMidiPlayerConfig)
+
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				log.Println("watcher.Errors is not ok")
+				return
+			}
+			log.Println("error:", err)
+
+		case <-signalChan:
+			log.Println("Signal Received")
+			quitChan <- struct{}{}
+			log.Println("Shutting Down")
+			time.Sleep(100 * time.Millisecond)
+			return
+		}
+	}
 }
 
 func CompileMml(mmlModule MmlModule) CleanPath {
@@ -272,13 +296,21 @@ func CreateTempSmfFile() CleanPath {
 	return NewCleanPath(tmpfile.Name())
 }
 
-func SendMidiMessage(ctx context.Context, midiPort string, smfData []byte) {
-	fmt.Printf("Available MIDI OutPorts:\n" + midi.GetOutPorts().String() + "\n")
+func AllNoteOff(out drivers.Out) {
+	for ch := 0; ch < 16; ch++ {
+		for n := 0; n < 128; n++ {
+			note := midi.NoteOff(uint8(ch), uint8(n))
+			out.Send(note)
+		}
+	}
+}
 
-	out, err := midi.FindOutPort(midiPort)
-	if err != nil {
-		log.Fatal("Midi Out Port not found: ", midiPort)
-		return
+func SendMidiMessage(quitChan chan struct{}, out drivers.Out, smfData []byte) {
+	if !out.IsOpen() {
+		err := out.Open()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	rd := bytes.NewReader(smfData)
@@ -292,8 +324,15 @@ func SendMidiMessage(ctx context.Context, midiPort string, smfData []byte) {
 
 	for {
 		select {
-		case <-ctx.Done():
-			out.Close()
+		case <-quitChan:
+			log.Println("All Note Off")
+			AllNoteOff(out)
+			log.Println("Midi Out Port Closing")
+			err := out.Close()
+			log.Println("Midi Out Port Closed")
+			if err != nil {
+				log.Fatal(err)
+			}
 			return
 		}
 	}
