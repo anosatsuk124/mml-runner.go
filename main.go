@@ -24,7 +24,7 @@ import (
 
 const (
 	MML_COMPILER              = "sakuramml"
-	DEFAULT_INCLUDE_FILE_NAME = "include"
+	DEFAULT_INCLUDE_FILE_NAME = "includes"
 )
 
 type CleanPath string
