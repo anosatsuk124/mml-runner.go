@@ -5,7 +5,7 @@ env:
 builds:
   - id: mml-runner-darwin-amd64
     binary: mml-runner
-    main: ./
+    main: ./cli/
     goarch:
       - amd64
     goos:
@@ -18,7 +18,7 @@ builds:
 
   - id: mml-runner-darwin-arm64
     binary: mml-runner
-    main: ./
+    main: ./cli/
     goarch:
       - arm64
     goos:
@@ -31,7 +31,7 @@ builds:
 
   - id: mml-runner-linux-amd64
     binary: mml-runner
-    main: ./
+    main: ./cli/
     env:
       - CC=x86_64-linux-gnu-gcc
       - CXX=x86_64-linux-gnu-g++
@@ -46,7 +46,7 @@ builds:
 
   - id: mml-runner-linux-arm64
     binary: mml-runner
-    main: ./
+    main: ./cli/
     goarch:
       - arm64
     goos:
@@ -61,7 +61,7 @@ builds:
 
   - id: mml-runner-windows-amd64
     binary: mml-runner
-    main: ./
+    main: ./cli/
     goarch:
       - amd64
     goos:
