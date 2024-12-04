@@ -34,10 +34,10 @@ jobs:
 
       - name: Build WebUI
         run: |-
-          cd ./webui && \
+          pushd ./packages/webui && \
           pnpm install && \
           pnpm build && \
-          cd ..
+          popd
 
       - name: Set up Go
         uses: actions/setup-go@v5
