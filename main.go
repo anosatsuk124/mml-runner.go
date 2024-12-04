@@ -196,7 +196,6 @@ func main() {
 
 	for {
 		select {
-		default:
 		case event, ok := <-watcher.Events:
 			log.Println("File Changed: ", event.Name)
 			if !ok {
