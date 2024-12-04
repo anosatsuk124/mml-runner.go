@@ -23,7 +23,8 @@ jobs:
 
       - name: Setup Node.js (for pnpm)
         uses: pnpm/action-setup@v4
-        run_install: false
+        with:
+          run_install: false
 
       - name: Install Node.js
         uses: actions/setup-node@v4
