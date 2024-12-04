@@ -21,6 +21,23 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup Node.js (for pnpm)
+        uses: pnpm/action-setup@v4
+        run_install: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Build WebUI
+        run: |-
+          cd ./webui && \
+          pnpm install && \
+          pnpm build && \
+          cd ..
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:

@@ -19,6 +19,7 @@ import (
 	"path"
 
 	"github.com/anosatsuk124/mml-runner/packages/mml"
+	"github.com/anosatsuk124/mml-runner/packages/server"
 
 	_ "gitlab.com/gomidi/midi/v2/drivers/rtmididrv" // autoregisters driver
 )
@@ -115,6 +116,8 @@ func main() {
 
 	var mmlMidiPlayerConfig mml.MmlMidiPlayerConfig = config.PlayerConfig()
 
+	go server.Serve()
+
 	defer midi.CloseDriver()
 
 	quitChan := make(chan struct{})
@@ -165,7 +168,7 @@ func main() {
 			log.Println("Signal Received")
 			quitChan <- struct{}{}
 			log.Println("Shutting Down")
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(time.Second)
 			return
 		}
 	}
@@ -199,10 +202,12 @@ func SendMidiMessage(quitChan chan struct{}, out drivers.Out, smfData []byte) {
 	for {
 		select {
 		case <-quitChan:
-			log.Println("All Note Off")
-			AllNoteOff(out)
 			log.Println("Midi Out Port Closing")
 			err := out.Close()
+			log.Println("All Note Off")
+			err = out.Open()
+			AllNoteOff(out)
+			err = out.Close()
 			log.Println("Midi Out Port Closed")
 			if err != nil {
 				log.Fatal(err)
