@@ -6,6 +6,23 @@
 go install github.com/anosatsuk124/mml-runner/packages/mml-runner@0.1.3
 ```
 
+## Usage
+
+```bash
+mml-runner -i <Include file (it expands into the head of mml files)> -f <MML file> -p <Midi Out port>
+
+Usage of mml-runner:
+  -f value
+        MML file to process (Required)
+  -h    Show help
+  -i value
+        Include file to process (Optional)
+  -p string
+        Midi Out port to use (Required)
+```
+
+## License Information
+
 ```
    Copyright 2024 Satsuki Akiba <anosatsuk124@gmail.com>
 
