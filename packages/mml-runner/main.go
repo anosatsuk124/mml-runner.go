@@ -23,6 +23,10 @@ import (
 	_ "gitlab.com/gomidi/midi/v2/drivers/rtmididrv" // autoregisters driver
 )
 
+const (
+	DEFAULT_WATING_TIME = 1000 * time.Millisecond
+)
+
 type ToPlayerConfig interface {
 	PlayerConfig() mml.MmlMidiPlayerConfig
 }
@@ -86,42 +90,63 @@ func InitCli() CliArgs {
 }
 
 func play(quitChan chan struct{}, mmlMidiPlayerConfig mml.MmlMidiPlayerConfig) {
-	for _, mmlModuleMidiOutPortMap := range mmlMidiPlayerConfig.MmlModuleMidiOutPortMaps {
-		var (
-			mmlModule   = mmlModuleMidiOutPortMap.MmlModule
-			midiOutPort = mmlModuleMidiOutPortMap.MidiOutPort
-		)
+	defer midi.CloseDriver()
 
-		smfFilePath := mml.CompileMml(mmlModule)
+	var (
+		mmlModuleMidiOutPortMaps = mmlMidiPlayerConfig.MmlModuleMidiOutPortMaps
+		mmlModule                = mmlModuleMidiOutPortMaps[0].MmlModule
+		midiOutPort              = mmlModuleMidiOutPortMaps[0].MidiOutPort
+	)
 
-		data, err := os.ReadFile(string(smfFilePath))
-		if err != nil {
-			log.Fatal(err)
-		}
+	smfFilePath := mml.CompileMml(mmlModule)
 
-		fmt.Printf("Available MIDI OutPorts:\n" + midi.GetOutPorts().String() + "\n")
-		out, err := midi.FindOutPort(midiOutPort)
-		if err != nil {
-			log.Fatal("Midi Out Port not found: ", midiOutPort)
-			return
-		}
+	data, err := os.ReadFile(string(smfFilePath))
+	if err != nil {
+		log.Fatal(err)
+	}
 
-		SendMidiMessage(quitChan, out, data)
+	fmt.Printf("Available MIDI OutPorts:\n" + midi.GetOutPorts().String() + "\n")
+	out, err := midi.FindOutPort(midiOutPort)
+	if err != nil {
+		log.Fatal("Midi Out Port not found: ", midiOutPort)
+		return
+	}
+
+	go SendMidiMessage(quitChan, out, data)
+
+	select {
+	case <-quitChan:
+		GracefulShutdown(out)
+
+		return
+	case <-SignalChan:
+		GracefulShutdown(out)
+		OkToShutdown <- struct{}{}
+		return
 	}
 }
+
+func GracefulShutdown(out drivers.Out) {
+	AllNoteOff(out)
+
+	if err := out.Close(); err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Midi Out Port Closed")
+}
+
+var SignalChan = make(chan os.Signal, 2)
+var OkToShutdown = make(chan struct{})
 
 func main() {
 	var config ToPlayerConfig = InitCli()
 
 	var mmlMidiPlayerConfig mml.MmlMidiPlayerConfig = config.PlayerConfig()
 
-	defer midi.CloseDriver()
-
 	quitChan := make(chan struct{})
-	signalChan := make(chan os.Signal, 2)
 
 	// Handle SIGINT
-	signal.Notify(signalChan, os.Interrupt)
+	signal.Notify(SignalChan, os.Interrupt)
 
 	var (
 		mmlFiles        = mmlMidiPlayerConfig.MmlModuleMidiOutPortMaps[0].MmlModule.MmlFiles
@@ -140,19 +165,31 @@ func main() {
 		log.Fatal(err)
 	}
 
-	go play(quitChan, mmlMidiPlayerConfig)
+	go func() {
+		go play(quitChan, mmlMidiPlayerConfig)
+		for {
+			select {
+			case <-quitChan:
+				time.Sleep(DEFAULT_WATING_TIME)
+				go play(quitChan, mmlMidiPlayerConfig)
+			}
+		}
+	}()
 
 	for {
 		select {
 		case event, ok := <-watcher.Events:
-			log.Println("File Changed: ", event.Name)
 			if !ok {
 				log.Println("watcher.Events is not ok")
 				return
 			}
-			quitChan <- struct{}{}
-			time.Sleep(100 * time.Millisecond)
-			go play(quitChan, mmlMidiPlayerConfig)
+			for _, file := range mmlFiles {
+				if event.Name == string(file) {
+					log.Println("File Changed: ", event.Name)
+					close(quitChan)
+					quitChan = make(chan struct{})
+				}
+			}
 
 		case err, ok := <-watcher.Errors:
 			if !ok {
@@ -161,53 +198,22 @@ func main() {
 			}
 			log.Println("error:", err)
 
-		case <-signalChan:
-			log.Println("Signal Received")
-			quitChan <- struct{}{}
-			log.Println("Shutting Down")
-			time.Sleep(100 * time.Millisecond)
+		case <-OkToShutdown:
 			return
 		}
 	}
 }
 func AllNoteOff(out drivers.Out) {
 	for ch := 0; ch < 16; ch++ {
-		for n := 0; n < 128; n++ {
-			note := midi.NoteOff(uint8(ch), uint8(n))
-			out.Send(note)
-		}
+		out.Send([]byte{0xB0 + byte(ch), byte(midi.AllNotesOff), 0})
 	}
 }
 
 func SendMidiMessage(quitChan chan struct{}, out drivers.Out, smfData []byte) {
-	if !out.IsOpen() {
-		err := out.Open()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
 	rd := bytes.NewReader(smfData)
 
-	go func() {
-		// read and play it
-		smf.ReadTracksFrom(rd).Do(func(ev smf.TrackEvent) {
-			log.Printf("track %v @%vms %s\n", ev.TrackNo, ev.AbsMicroSeconds/1000, ev.Message)
-		}).Play(out)
-	}()
-
-	for {
-		select {
-		case <-quitChan:
-			log.Println("All Note Off")
-			AllNoteOff(out)
-			log.Println("Midi Out Port Closing")
-			err := out.Close()
-			log.Println("Midi Out Port Closed")
-			if err != nil {
-				log.Fatal(err)
-			}
-			return
-		}
-	}
+	// read and play it
+	smf.ReadTracksFrom(rd).Do(func(ev smf.TrackEvent) {
+		log.Printf("track %v @%vms %s\n", ev.TrackNo, ev.AbsMicroSeconds/1000, ev.Message)
+	}).Play(out)
 }

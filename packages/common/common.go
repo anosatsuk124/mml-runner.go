@@ -2,13 +2,19 @@ package common
 
 import (
 	"fmt"
+	"log"
 	"path"
+	"path/filepath"
 )
 
 type CleanPath string
 
 func NewCleanPath(p string) CleanPath {
-	return CleanPath(path.Clean(p))
+	absPath, err := filepath.Abs(p)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return CleanPath(path.Clean(absPath))
 }
 
 type CleanPathSlice []CleanPath
