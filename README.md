@@ -1,5 +1,11 @@
 # mml-runner
 
+## Installation
+
+```bash
+go install github.com/anosatsuk124/mml-runner/packages/mml-runner@0.1.3
+```
+
 ```
    Copyright 2024 Satsuki Akiba <anosatsuk124@gmail.com>
 
