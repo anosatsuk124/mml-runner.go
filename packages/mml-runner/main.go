@@ -16,8 +16,7 @@ import (
 	"gitlab.com/gomidi/midi/v2/drivers"
 	"gitlab.com/gomidi/midi/v2/smf"
 
-	"path"
-
+	"github.com/anosatsuk124/mml-runner/packages/common"
 	"github.com/anosatsuk124/mml-runner/packages/mml"
 
 	_ "gitlab.com/gomidi/midi/v2/drivers/rtmididrv" // autoregisters driver
@@ -46,13 +45,33 @@ func ParseCliArgs() CliArgs {
 		help         bool
 	)
 
+	var (
+		plainFiles common.CleanPathSlice
+		execFiles  common.CleanPathSlice
+	)
+
 	flag.StringVar(&midiOutPort, "p", "", "Midi Out port to use (Required)")
-	flag.Var(&mmlFiles, "f", "MML file to process (Required)")
-	flag.Var(&includeFiles, "i", "Include file to process (Optional)")
+	flag.Var(&plainFiles, "f", "MML files to process (Required)")
+	flag.Var(&includeFiles, "i", "Include files to process (Optional)")
+	flag.Var(&execFiles, "e", "Executable files to execute and expand the output as MML (Optional)")
 	flag.BoolVar(&help, "h", false, "Show help")
 
 	{
 		flag.Parse()
+
+		for _, plainFile := range plainFiles {
+			mmlFiles = append(mmlFiles, mml.MmlFile{
+				Path:         plainFile,
+				IsExecutable: false,
+			})
+		}
+		for _, execFile := range execFiles {
+			mmlFiles = append(mmlFiles, mml.MmlFile{
+				Path:         execFile,
+				IsExecutable: true,
+			})
+		}
+
 		if !(len(mmlFiles) > 0) || midiOutPort == "" {
 			help = true
 		}
@@ -89,8 +108,10 @@ func InitCli() CliArgs {
 	return cliArgs
 }
 
-func play(quitChan chan struct{}, mmlMidiPlayerConfig mml.MmlMidiPlayerConfig) {
+func play(mmlMidiPlayerConfig mml.MmlMidiPlayerConfig) {
 	defer midi.CloseDriver()
+
+	IsRunning = true
 
 	var (
 		mmlModuleMidiOutPortMaps = mmlMidiPlayerConfig.MmlModuleMidiOutPortMaps
@@ -112,16 +133,14 @@ func play(quitChan chan struct{}, mmlMidiPlayerConfig mml.MmlMidiPlayerConfig) {
 		return
 	}
 
-	go SendMidiMessage(quitChan, out, data)
+	go SendMidiMessage(out, data)
 
 	select {
-	case <-quitChan:
+	case _, isOpen := <-QuitChan:
 		GracefulShutdown(out)
-
-		return
-	case <-SignalChan:
-		GracefulShutdown(out)
-		OkToShutdown <- struct{}{}
+		if !isOpen {
+			OkToShutdown <- struct{}{}
+		}
 		return
 	}
 }
@@ -133,24 +152,25 @@ func GracefulShutdown(out drivers.Out) {
 		log.Fatal(err)
 	}
 	log.Println("Midi Out Port Closed")
+	IsRunning = false
 }
 
 var SignalChan = make(chan os.Signal, 2)
 var OkToShutdown = make(chan struct{})
+var JobChan = make(chan struct{})
+var QuitChan = make(chan struct{})
+var IsRunning = false
 
 func main() {
 	var config ToPlayerConfig = InitCli()
 
 	var mmlMidiPlayerConfig mml.MmlMidiPlayerConfig = config.PlayerConfig()
 
-	quitChan := make(chan struct{})
-
 	// Handle SIGINT
 	signal.Notify(SignalChan, os.Interrupt)
 
 	var (
-		mmlFiles        = mmlMidiPlayerConfig.MmlModuleMidiOutPortMaps[0].MmlModule.MmlFiles
-		firstMmlFileDir = path.Dir(string(mmlFiles[0]))
+		mmlFiles = mmlMidiPlayerConfig.MmlModuleMidiOutPortMaps[0].MmlModule.MmlFiles
 	)
 
 	watcher, err := fsnotify.NewWatcher()
@@ -158,24 +178,27 @@ func main() {
 		log.Fatal(err)
 	}
 	defer watcher.Close()
-	log.Println("Watching: ", firstMmlFileDir)
 
-	err = watcher.Add(firstMmlFileDir)
-	if err != nil {
-		log.Fatal(err)
+	for _, file := range mmlFiles {
+		err = watcher.Add(string(file.Path))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		log.Println("Watching: ", file.Path)
 	}
 
 	go func() {
-		go play(quitChan, mmlMidiPlayerConfig)
+		go play(mmlMidiPlayerConfig)
 		for {
 			select {
-			case <-quitChan:
-				time.Sleep(DEFAULT_WATING_TIME)
-				go play(quitChan, mmlMidiPlayerConfig)
+			case <-JobChan:
+				go play(mmlMidiPlayerConfig)
 			}
 		}
 	}()
 
+	var prevTime = time.Now()
 	for {
 		select {
 		case event, ok := <-watcher.Events:
@@ -183,13 +206,15 @@ func main() {
 				log.Println("watcher.Events is not ok")
 				return
 			}
-			for _, file := range mmlFiles {
-				if event.Name == string(file) {
-					log.Println("File Changed: ", event.Name)
-					close(quitChan)
-					quitChan = make(chan struct{})
-				}
+			if time.Since(prevTime) < DEFAULT_WATING_TIME {
+				continue
+			} else {
+				prevTime = time.Now()
 			}
+			log.Println("File Changed: ", event.Name)
+
+			QuitChan <- struct{}{}
+			JobChan <- struct{}{}
 
 		case err, ok := <-watcher.Errors:
 			if !ok {
@@ -198,8 +223,14 @@ func main() {
 			}
 			log.Println("error:", err)
 
-		case <-OkToShutdown:
-			return
+		case <-SignalChan:
+			close(QuitChan)
+			close(JobChan)
+
+			select {
+			case <-OkToShutdown:
+				return
+			}
 		}
 	}
 }
@@ -209,7 +240,7 @@ func AllNoteOff(out drivers.Out) {
 	}
 }
 
-func SendMidiMessage(quitChan chan struct{}, out drivers.Out, smfData []byte) {
+func SendMidiMessage(out drivers.Out, smfData []byte) {
 	rd := bytes.NewReader(smfData)
 
 	// read and play it

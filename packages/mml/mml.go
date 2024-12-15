@@ -15,9 +15,16 @@ const (
 	DEFAULT_INCLUDE_FILE_NAME = "includes"
 )
 
-type MmlFiles = common.CleanPathSlice
+type MmlFile struct {
+	Path         common.CleanPath
+	IsExecutable bool
+}
+
+type MmlFiles = []MmlFile
 
 type IncludeFiles = common.CleanPathSlice
+
+type ExecutableFiles = common.CleanPathSlice
 
 type MmlModuleMidiOutPortMap struct {
 	MidiOutPort string
@@ -35,7 +42,7 @@ type MmlModule struct {
 
 func NewMmlModule(includeFiles IncludeFiles, mmlFiles MmlFiles) MmlModule {
 	if len(mmlFiles) > 0 {
-		firstMmlFileDir := path.Dir(string(mmlFiles[0]))
+		firstMmlFileDir := path.Dir(string(mmlFiles[0].Path))
 		defaultIncludeFile := common.NewCleanPath(path.Join(firstMmlFileDir, DEFAULT_INCLUDE_FILE_NAME))
 		includeFiles = append(includeFiles, defaultIncludeFile)
 	}
@@ -64,6 +71,20 @@ func CompileMml(mmlModule MmlModule) common.CleanPath {
 	return smfFilePath
 }
 
+func ExecutableFileToMmlString(execFile common.CleanPath) string {
+	var mmlCode string
+
+	output, err := exec.Command(string(execFile)).Output()
+
+	if err != nil {
+		log.Println("err: ", err)
+	}
+
+	mmlCode += string(output) + "\n"
+
+	return mmlCode
+}
+
 func ConcatMmlModule(mmlModule MmlModule) string {
 	var mmlCode string
 
@@ -85,7 +106,9 @@ func ConcatMmlModule(mmlModule MmlModule) string {
 	}
 
 	for _, mmlFile := range mmlModule.MmlFiles {
-		if mmldata, err := os.ReadFile(string(mmlFile)); err == nil {
+		if mmlFile.IsExecutable {
+			mmlCode += ExecutableFileToMmlString(mmlFile.Path)
+		} else if mmldata, err := os.ReadFile(string(mmlFile.Path)); err == nil {
 			mmlCode += string(mmldata)
 		}
 	}
