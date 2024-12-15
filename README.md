@@ -3,22 +3,24 @@
 ## Installation
 
 ```bash
-go install github.com/anosatsuk124/mml-runner/packages/mml-runner@0.1.3
+go install github.com/anosatsuk124/mml-runner/packages/mml-runner@0.1.4
 ```
 
 ## Usage
 
 ```bash
-mml-runner -i <Include file (it expands into the head of mml files)> -f <MML file> -p <Midi Out port>
+mml-runner -i <Include file (it expands into the head of mml files)> -f <MML file> -p <Midi Out port> -e <Executable file>
 
 Usage of mml-runner:
+  -e value
+    	Executable files to execute and expand the output as MML (Optional)
   -f value
-        MML file to process (Required)
-  -h    Show help
+    	MML files to process (Required)
+  -h	Show help
   -i value
-        Include file to process (Optional)
+    	Include files to process (Optional)
   -p string
-        Midi Out port to use (Required)
+    	Midi Out port to use (Required)
 ```
 
 ## License Information
