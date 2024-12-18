@@ -23,7 +23,8 @@ import (
 )
 
 const (
-	DEFAULT_WATING_TIME = 1000 * time.Millisecond
+	DEFAULT_WATING_TIME       = 1500 * time.Millisecond
+	DEFAULT_FILE_REFRESH_TIME = 2500 * time.Millisecond
 )
 
 type ToPlayerConfig interface {
@@ -109,8 +110,6 @@ func InitCli() CliArgs {
 }
 
 func play(mmlMidiPlayerConfig mml.MmlMidiPlayerConfig) {
-	defer midi.CloseDriver()
-
 	IsRunning = true
 
 	var (
@@ -136,29 +135,30 @@ func play(mmlMidiPlayerConfig mml.MmlMidiPlayerConfig) {
 	go SendMidiMessage(out, data)
 
 	select {
-	case _, isOpen := <-QuitChan:
+	case <-RestartChan:
 		GracefulShutdown(out)
-		if !isOpen {
-			OkToShutdown <- struct{}{}
-		}
 		return
+	case <-SignalChan:
+		GracefulShutdown(out)
+		os.Exit(0)
 	}
 }
 
 func GracefulShutdown(out drivers.Out) {
 	AllNoteOff(out)
-
+	log.Println("AllNoteOff")
 	if err := out.Close(); err != nil {
 		log.Fatal(err)
 	}
 	log.Println("Midi Out Port Closed")
+
+	time.Sleep(DEFAULT_WATING_TIME)
+
 	IsRunning = false
 }
 
 var SignalChan = make(chan os.Signal, 2)
-var OkToShutdown = make(chan struct{})
-var JobChan = make(chan struct{})
-var QuitChan = make(chan struct{})
+var RestartChan = make(chan struct{})
 var IsRunning = false
 
 func main() {
@@ -189,12 +189,9 @@ func main() {
 	}
 
 	go func() {
-		go play(mmlMidiPlayerConfig)
+		defer midi.CloseDriver()
 		for {
-			select {
-			case <-JobChan:
-				go play(mmlMidiPlayerConfig)
-			}
+			play(mmlMidiPlayerConfig)
 		}
 	}()
 
@@ -206,15 +203,13 @@ func main() {
 				log.Println("watcher.Events is not ok")
 				return
 			}
-			if time.Since(prevTime) < DEFAULT_WATING_TIME {
+			if time.Since(prevTime) < DEFAULT_FILE_REFRESH_TIME {
 				continue
 			} else {
 				prevTime = time.Now()
 			}
 			log.Println("File Changed: ", event.Name)
-
-			QuitChan <- struct{}{}
-			JobChan <- struct{}{}
+			RestartChan <- struct{}{}
 
 		case err, ok := <-watcher.Errors:
 			if !ok {
@@ -222,15 +217,6 @@ func main() {
 				return
 			}
 			log.Println("error:", err)
-
-		case <-SignalChan:
-			close(QuitChan)
-			close(JobChan)
-
-			select {
-			case <-OkToShutdown:
-				return
-			}
 		}
 	}
 }
