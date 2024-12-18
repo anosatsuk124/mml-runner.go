@@ -31,10 +31,18 @@ type ToPlayerConfig interface {
 	PlayerConfig() mml.MmlMidiPlayerConfig
 }
 
+type MidiOutFile struct {
+	IsSpecified bool
+	Value       string
+}
+
 // Represents the command line arguments
 type CliArgs struct {
 	mmlModuleMidiOutPortMap mml.MmlModuleMidiOutPortMap
 	help                    bool
+	midiOutFile             MidiOutFile
+	quiet                   bool
+	once                    bool
 }
 
 // Parse the command line arguments
@@ -43,12 +51,16 @@ func ParseCliArgs() CliArgs {
 		mmlFiles     mml.MmlFiles
 		includeFiles mml.IncludeFiles
 		midiOutPort  string
+		midiOutFile  string
+		quiet        bool
+		once         bool
 		help         bool
 	)
 
 	var (
-		plainFiles common.CleanPathSlice
-		execFiles  common.CleanPathSlice
+		plainFiles             common.CleanPathSlice
+		execFiles              common.CleanPathSlice
+		midiOutFileIsSpecified bool = false
 	)
 
 	flag.StringVar(&midiOutPort, "p", "", "Midi Out port to use (Required)")
@@ -56,6 +68,9 @@ func ParseCliArgs() CliArgs {
 	flag.Var(&includeFiles, "i", "Include files to process (Optional)")
 	flag.Var(&execFiles, "e", "Executable files to execute and expand the output as MML (Optional)")
 	flag.BoolVar(&help, "h", false, "Show help")
+	flag.StringVar(&midiOutFile, "o", "", "Output file path (Optional)")
+	flag.BoolVar(&quiet, "q", false, "Quiet compile only mode (Optional) (Output file path is required)")
+	flag.BoolVar(&once, "1", false, "Run only once (Optional)")
 
 	{
 		flag.Parse()
@@ -76,6 +91,14 @@ func ParseCliArgs() CliArgs {
 		if !(len(mmlFiles) > 0) || midiOutPort == "" {
 			help = true
 		}
+
+		if midiOutFile == "" {
+			if quiet {
+				help = true
+			}
+		} else {
+			midiOutFileIsSpecified = true
+		}
 	}
 
 	return CliArgs{
@@ -84,6 +107,12 @@ func ParseCliArgs() CliArgs {
 			MidiOutPort: midiOutPort,
 		},
 		help: help,
+		midiOutFile: MidiOutFile{
+			IsSpecified: midiOutFileIsSpecified,
+			Value:       midiOutFile,
+		},
+		quiet: quiet,
+		once:  once,
 	}
 }
 
@@ -156,15 +185,22 @@ func GracefulShutdown(out drivers.Out) {
 	IsRunning = false
 }
 
-var SignalChan = make(chan os.Signal, 2)
-var RestartChan = make(chan struct{})
-var IsRunning = false
+func runQuiet(mmlMidiPlayerConfig mml.MmlMidiPlayerConfig) common.CleanPath {
+	var (
+		mmlModuleMidiOutPortMaps = mmlMidiPlayerConfig.MmlModuleMidiOutPortMaps
+		mmlModule                = mmlModuleMidiOutPortMaps[0].MmlModule
+	)
 
-func main() {
-	var config ToPlayerConfig = InitCli()
+	smfFilePath := mml.CompileMml(mmlModule)
 
-	var mmlMidiPlayerConfig mml.MmlMidiPlayerConfig = config.PlayerConfig()
+	return smfFilePath
+}
 
+func runOnce(mmlMidiPlayerConfig mml.MmlMidiPlayerConfig) {
+	play(mmlMidiPlayerConfig)
+}
+
+func runAndWatch(mmlMidiPlayerConfig mml.MmlMidiPlayerConfig) {
 	// Handle SIGINT
 	signal.Notify(SignalChan, os.Interrupt)
 
@@ -219,6 +255,38 @@ func main() {
 		}
 	}
 }
+
+var SignalChan = make(chan os.Signal, 2)
+var RestartChan = make(chan struct{})
+var IsRunning = false
+
+func main() {
+	var config = InitCli()
+
+	var mmlMidiPlayerConfig mml.MmlMidiPlayerConfig = config.PlayerConfig()
+
+	{
+		tempSmfFilePath := runQuiet(mmlMidiPlayerConfig)
+		if config.midiOutFile.IsSpecified {
+			if err := os.Rename(string(tempSmfFilePath), config.midiOutFile.Value); err != nil {
+				log.Fatal(err)
+			}
+
+			log.Println("Output file: ", config.midiOutFile.Value)
+		}
+	}
+
+	if config.quiet {
+		return
+	}
+
+	if config.once {
+		runOnce(mmlMidiPlayerConfig)
+	} else {
+		runAndWatch(mmlMidiPlayerConfig)
+	}
+}
+
 func AllSoundOff(out drivers.Out) {
 	for ch := 0; ch < 16; ch++ {
 		out.Send([]byte{0xB0 + byte(ch), byte(midi.AllSoundOff), 0})
