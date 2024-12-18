@@ -145,8 +145,7 @@ func play(mmlMidiPlayerConfig mml.MmlMidiPlayerConfig) {
 }
 
 func GracefulShutdown(out drivers.Out) {
-	AllNoteOff(out)
-	log.Println("AllNoteOff")
+	AllSoundOff(out)
 	if err := out.Close(); err != nil {
 		log.Fatal(err)
 	}
@@ -220,10 +219,11 @@ func main() {
 		}
 	}
 }
-func AllNoteOff(out drivers.Out) {
+func AllSoundOff(out drivers.Out) {
 	for ch := 0; ch < 16; ch++ {
-		out.Send([]byte{0xB0 + byte(ch), byte(midi.AllNotesOff), 0})
+		out.Send([]byte{0xB0 + byte(ch), byte(midi.AllSoundOff), 0})
 	}
+	log.Println("AllSoundOff")
 }
 
 func SendMidiMessage(out drivers.Out, smfData []byte) {
