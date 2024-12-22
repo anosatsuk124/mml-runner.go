@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path"
 	"time"
 
 	"bytes"
@@ -88,15 +89,15 @@ func ParseCliArgs() CliArgs {
 			})
 		}
 
-		if !(len(mmlFiles) > 0) || midiOutPort == "" {
+		if !(len(mmlFiles) > 0) {
 			help = true
 		}
 
-		if midiOutFile == "" {
-			if quiet {
-				help = true
-			}
-		} else {
+		if midiOutPort == "" && midiOutFile == "" {
+			help = true
+		}
+
+		if midiOutFile != "" {
 			midiOutFileIsSpecified = true
 		}
 	}
@@ -215,12 +216,13 @@ func runAndWatch(mmlMidiPlayerConfig mml.MmlMidiPlayerConfig) {
 	defer watcher.Close()
 
 	for _, file := range mmlFiles {
-		err = watcher.Add(string(file.Path))
+		dir := path.Dir(string(file.Path))
+		err = watcher.Add(dir)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		log.Println("Watching: ", file.Path)
+		log.Println("Watching: ", dir)
 	}
 
 	go func() {
