@@ -198,7 +198,31 @@ func runQuiet(mmlMidiPlayerConfig mml.MmlMidiPlayerConfig) common.CleanPath {
 }
 
 func runOnce(mmlMidiPlayerConfig mml.MmlMidiPlayerConfig) {
-	play(mmlMidiPlayerConfig)
+	IsRunning = true
+
+	var (
+		mmlModuleMidiOutPortMaps = mmlMidiPlayerConfig.MmlModuleMidiOutPortMaps
+		mmlModule                = mmlModuleMidiOutPortMaps[0].MmlModule
+		midiOutPort              = mmlModuleMidiOutPortMaps[0].MidiOutPort
+	)
+
+	smfFilePath := mml.CompileMml(mmlModule)
+
+	data, err := os.ReadFile(string(smfFilePath))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("Available MIDI OutPorts:\n" + midi.GetOutPorts().String() + "\n")
+	out, err := midi.FindOutPort(midiOutPort)
+	if err != nil {
+		log.Fatal("Midi Out Port not found: ", midiOutPort)
+		return
+	}
+
+	SendMidiMessage(out, data)
+
+	GracefulShutdown(out)
 }
 
 func runAndWatch(mmlMidiPlayerConfig mml.MmlMidiPlayerConfig) {
